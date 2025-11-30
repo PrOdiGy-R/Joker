@@ -433,6 +433,11 @@ body {
     color: #dc3545 !important;
 }
 
+.score-value.strikethrough {
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+}
+
 .score-value.bonus {
     color: #28a745;
 }

@@ -121,7 +121,14 @@ else
                                                     <span class="separator">→</span>
                                                     <span class="actual-value">@round.ActualTricks[playerIndex]</span>
                                                 </div>
-                                                <div class="score-value @GetScoreColorClass(segmentIndex, roundInSegment, playerIndex, round.Scores[playerIndex])">@round.Scores[playerIndex]</div>
+                                                @if (round.HasDeduction[playerIndex])
+                                                {
+                                                    <div class="score-value deduction strikethrough">@round.OriginalScores[playerIndex]</div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="score-value @GetScoreColorClass(segmentIndex, roundInSegment, playerIndex, round.Scores[playerIndex])">@round.Scores[playerIndex]</div>
+                                                }
                                             </div>
                                         }
                                         else if (HasBidsEntered(round) && !round.ActualTricks.Any(a => a.HasValue))

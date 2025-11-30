@@ -299,6 +299,8 @@ public class GameService
         
         if (maxScoreRoundIndex >= 0)
         {
+            // Store the original score before deduction
+            segment.Rounds[maxScoreRoundIndex].OriginalScores[playerIndex] = segment.Rounds[maxScoreRoundIndex].Scores[playerIndex];
             segment.Rounds[maxScoreRoundIndex].Scores[playerIndex] -= maxScore;
             segment.Rounds[maxScoreRoundIndex].HasDeduction[playerIndex] = true;
             segment.BonusAdjustments[playerIndex] -= maxScore;
