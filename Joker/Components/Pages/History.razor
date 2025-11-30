@@ -1,0 +1,116 @@
+﻿@page "/history"
+@rendermode InteractiveServer
+@using Joker.Models
+@using Joker.Services
+@inject GameService GameService
+@inject LanguageService Lang
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>@Lang.T("history_title")</PageTitle>
+
+<div class="history-page">
+    <div class="history-header">
+        <h1>@Lang.T("history_title")</h1>
+        <div class="language-selector">
+            <button class="@(Lang.CurrentLanguage == "en" ? "active" : "")" 
+                    @onclick='() => Lang.SetLanguage("en")'>EN</button>
+            <button class="@(Lang.CurrentLanguage == "ka" ? "active" : "")" 
+                    @onclick='() => Lang.SetLanguage("ka")'>ქარ</button>
+        </div>
+    </div>
+
+    <div class="history-container">
+        @if (historyList.Count == 0)
+        {
+            <div class="no-history">
+                <p>@Lang.T("no_history")</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var game in historyList)
+            {
+                <div class="history-card">
+                    <div class="history-card-header">
+                        <div class="game-info">
+                            <span class="game-mode">@GetModeName(game.Mode)</span>
+                            <span class="game-type">@GetPlayTypeName(game.PlayType)</span>
+                        </div>
+                        <div class="game-date">
+                            @game.CompletedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                        </div>
+                    </div>
+                    
+                    <div class="history-scores">
+                        @if (game.PlayType == PlayType.Pairs)
+                        {
+                            <div class="score-row winner">
+                                <span class="player-name">
+                                    🏆 @Lang.T("pair") 1: @game.PlayerNames[0] & @game.PlayerNames[2]
+                                </span>
+                                <span class="score-value">@game.FinalScores[0]</span>
+                            </div>
+                            <div class="score-row">
+                                <span class="player-name">
+                                    @Lang.T("pair") 2: @game.PlayerNames[1] & @game.PlayerNames[3]
+                                </span>
+                                <span class="score-value">@game.FinalScores[1]</span>
+                            </div>
+                        }
+                        else
+                        {
+                            var maxScore = game.FinalScores.Max();
+                            @for (int i = 0; i < 4; i++)
+                            {
+                                var index = i;
+                                var isWinner = game.FinalScores[index] == maxScore;
+                                <div class="score-row @(isWinner ? "winner" : "")">
+                                    <span class="player-name">
+                                        @(isWinner ? "🏆 " : "")@game.PlayerNames[index]
+                                    </span>
+                                    <span class="score-value">@game.FinalScores[index]</span>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
+    <div class="history-actions">
+        <button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/")'>
+            @Lang.T("back")
+        </button>
+    </div>
+</div>
+
+@code {
+    private List<GameHistory> historyList = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Lang.OnLanguageChanged += StateHasChanged;
+        historyList = await GameService.GetHistoryAsync();
+    }
+
+    private string GetModeName(GameMode mode)
+    {
+        return mode == GameMode.Standard 
+            ? Lang.T("mode_standard") 
+            : Lang.T("mode_only_nines");
+    }
+
+    private string GetPlayTypeName(PlayType playType)
+    {
+        return playType == PlayType.Individuals 
+            ? Lang.T("type_individuals") 
+            : Lang.T("type_pairs");
+    }
+
+    public void Dispose()
+    {
+        Lang.OnLanguageChanged -= StateHasChanged;
+    }
+}

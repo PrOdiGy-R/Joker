@@ -1,0 +1,217 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using Joker.Models
+@using Joker.Services
+@inject GameService GameService
+@inject LanguageService Lang
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>@Lang.T("setup_title")</PageTitle>
+
+<div class="setup-page">
+    <div class="setup-container">
+        <div class="setup-header">
+            <h1>@Lang.T("setup_title")</h1>
+            <div class="language-selector">
+                <button class="@(Lang.CurrentLanguage == "en" ? "active" : "")" 
+                        @onclick='() => Lang.SetLanguage("en")'>EN</button>
+                <button class="@(Lang.CurrentLanguage == "ka" ? "active" : "")" 
+                        @onclick='() => Lang.SetLanguage("ka")'>ქარ</button>
+            </div>
+        </div>
+
+        @if (hasExistingGame)
+        {
+            <div class="resume-game-card">
+                <button class="btn btn-primary btn-lg" @onclick="ResumeGame">
+                    @Lang.T("resume_game")
+                </button>
+            </div>
+        }
+
+        <div class="setup-form">
+            <div class="form-section">
+                <h3>@Lang.T("player_name")</h3>
+                <div class="form-group">
+                    <label>@Lang.T("player") 1</label>
+                    <input type="text" 
+                           class="form-control" 
+                           list="player-suggestions-0"
+                           @bind="playerNames[0]"
+                           @bind:event="oninput"
+                           placeholder="@Lang.T("player") 1" />
+                    <datalist id="player-suggestions-0">
+                        @foreach (var name in suggestedNames)
+                        {
+                            <option value="@name" />
+                        }
+                    </datalist>
+                </div>
+                <div class="form-group">
+                    <label>@Lang.T("player") 2</label>
+                    <input type="text" 
+                           class="form-control" 
+                           list="player-suggestions-1"
+                           @bind="playerNames[1]"
+                           @bind:event="oninput"
+                           placeholder="@Lang.T("player") 2" />
+                    <datalist id="player-suggestions-1">
+                        @foreach (var name in suggestedNames)
+                        {
+                            <option value="@name" />
+                        }
+                    </datalist>
+                </div>
+                <div class="form-group">
+                    <label>@Lang.T("player") 3</label>
+                    <input type="text" 
+                           class="form-control" 
+                           list="player-suggestions-2"
+                           @bind="playerNames[2]"
+                           @bind:event="oninput"
+                           placeholder="@Lang.T("player") 3" />
+                    <datalist id="player-suggestions-2">
+                        @foreach (var name in suggestedNames)
+                        {
+                            <option value="@name" />
+                        }
+                    </datalist>
+                </div>
+                <div class="form-group">
+                    <label>@Lang.T("player") 4</label>
+                    <input type="text" 
+                           class="form-control" 
+                           list="player-suggestions-3"
+                           @bind="playerNames[3]"
+                           @bind:event="oninput"
+                           placeholder="@Lang.T("player") 4" />
+                    <datalist id="player-suggestions-3">
+                        @foreach (var name in suggestedNames)
+                        {
+                            <option value="@name" />
+                        }
+                    </datalist>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>@Lang.T("game_mode")</h3>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" 
+                               name="mode" 
+                               checked="@(selectedMode == GameMode.Standard)"
+                               @onchange="() => selectedMode = GameMode.Standard" />
+                        <span>@Lang.T("mode_standard")</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" 
+                               name="mode" 
+                               checked="@(selectedMode == GameMode.OnlyNines)"
+                               @onchange="() => selectedMode = GameMode.OnlyNines" />
+                        <span>@Lang.T("mode_only_nines")</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h3>@Lang.T("play_type")</h3>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio"
+                               name="playtype"
+                               checked="@(selectedPlayType == PlayType.Pairs)"
+                               @onchange="() => selectedPlayType = PlayType.Pairs" />
+                        <span>@Lang.T("type_pairs")</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" 
+                               name="playtype" 
+                               checked="@(selectedPlayType == PlayType.Individuals)"
+                               @onchange="() => selectedPlayType = PlayType.Individuals" />
+                        <span>@Lang.T("type_individuals")</span>
+                    </label>
+                    
+                </div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="error-message">
+                    @errorMessage
+                </div>
+            }
+
+            <button class="btn btn-primary btn-lg" @onclick="StartGame" disabled="@isStarting">
+                @(isStarting ? "Starting..." : Lang.T("start_game"))
+            </button>
+            
+            <button class="btn btn-secondary" @onclick="ViewHistory">
+                @Lang.T("view_history")
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string[] playerNames = new string[] { "", "", "", "" };
+    private GameMode selectedMode = GameMode.Standard;
+    private PlayType selectedPlayType = PlayType.Pairs;
+    private string errorMessage = string.Empty;
+    private bool hasExistingGame = false;
+    private bool isStarting = false;
+
+    private readonly string[] suggestedNames = new[] { "Rati", "Mari", "Ilia", "Nini", "Shore", "Givi" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Lang.OnLanguageChanged += StateHasChanged;
+        await GameService.LoadCurrentGameAsync();
+        hasExistingGame = GameService.CurrentGame != null && !GameService.CurrentGame.IsCompleted;
+    }
+
+    private async Task StartGame()
+    {
+        if (isStarting) return;
+        
+        errorMessage = string.Empty;
+        isStarting = true;
+
+        try
+        {
+            if (playerNames.Any(string.IsNullOrWhiteSpace))
+            {
+                errorMessage = Lang.T("player_required");
+                return;
+            }
+
+            GameService.StartNewGame(playerNames, selectedMode, selectedPlayType);
+            await GameService.SaveCurrentGameAsync();
+            
+            // Small delay to ensure save completes
+            await Task.Delay(100);
+            
+            Navigation.NavigateTo("/scoreboard", forceLoad: true);
+        }
+        finally
+        {
+            isStarting = false;
+        }
+    }
+
+    private void ResumeGame()
+    {
+        Navigation.NavigateTo("/scoreboard");
+    }
+
+    private void ViewHistory()
+    {
+        Navigation.NavigateTo("/history");
+    }
+
+    public void Dispose()
+    {
+        Lang.OnLanguageChanged -= StateHasChanged;
+    }
+}

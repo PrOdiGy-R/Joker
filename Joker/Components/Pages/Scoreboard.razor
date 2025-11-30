@@ -1,0 +1,858 @@
+﻿@page "/scoreboard"
+@rendermode InteractiveServer
+@using Joker.Models
+@using Joker.Services
+@inject GameService GameService
+@inject LanguageService Lang
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<PageTitle>@Lang.T("scoreboard_title")</PageTitle>
+
+@if (!isLoaded)
+{
+    <div class="no-game">
+        <p>Loading...</p>
+    </div>
+}
+else if (GameService.CurrentGame == null)
+{
+    <div class="no-game">
+        <p>No active game</p>
+        <button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/")'>
+            @Lang.T("new_game")
+        </button>
+    </div>
+}
+else
+{
+    <div class="scoreboard-page">
+        <div class="scoreboard-header">
+            <div class="header-left">
+                <h1>@Lang.T("scoreboard_title")</h1>
+                <div class="language-selector">
+                    <button class="@(Lang.CurrentLanguage == "en" ? "active" : "")" 
+                            @onclick='() => Lang.SetLanguage("en")'>EN</button>
+                    <button class="@(Lang.CurrentLanguage == "ka" ? "active" : "")" 
+                            @onclick='() => Lang.SetLanguage("ka")'>ქარ</button>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="btn btn-secondary" @onclick="ViewHistory">
+                    @Lang.T("view_history")
+                </button>
+                <button class="btn btn-primary" @onclick="FinishGame">
+                    @Lang.T("finish_game")
+                </button>
+            </div>
+        </div>
+
+        <div class="scoreboard-container">
+            <table class="scoreboard-table">
+                <thead>
+                    <tr>
+                        <th class="cards-column">@Lang.T("cards")</th>
+                        @for (int p = 0; p < 4; p++)
+                        {
+                            var playerIndex = p;
+                            <th class="player-column">
+                                <div class="player-header">
+                                    <span>@GameService.CurrentGame.PlayerNames[playerIndex]</span>
+                                    @if (GameService.CurrentGame.CurrentDealerIndex == playerIndex)
+                                    {
+                                        <span class="dealer-badge">🃏</span>
+                                    }
+                                </div>
+                            </th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @{
+                        int globalRoundIndex = 0;
+                        int[] runningTotals = new int[4];
+                    }
+                    @foreach (var segment in GameService.CurrentGame.Segments)
+                    {
+                        <tr class="segment-header-row">
+                            <td colspan="5" class="segment-header">
+                                @Lang.T("segment") @segment.SegmentNumber
+                            </td>
+                        </tr>
+
+                        @foreach (var round in segment.Rounds)
+                        {
+                            var roundIndex = globalRoundIndex;
+                            var segmentIndex = GameService.CurrentGame.Segments.IndexOf(segment);
+                            var roundInSegment = segment.Rounds.IndexOf(round);
+
+                            <tr class="round-row @(IsCurrentRound(segmentIndex, roundInSegment) ? "current-round" : "")">
+                                <td class="cards-cell">@round.CardsDealt</td>
+                                @for (int p = 0; p < 4; p++)
+                                {
+                                    var playerIndex = p;
+                                    <td class="score-cell" @onclick="() => OpenRoundInput(segmentIndex, roundInSegment, playerIndex)">
+                                        @if (round.ActualTricks[playerIndex].HasValue)
+                                        {
+                                            <div class="score-content completed">
+                                                <div class="bid-actual">
+                                                    <span class="bid-value">@FormatBid(round.Bids[playerIndex])</span>
+                                                    <span class="separator">→</span>
+                                                    <span class="actual-value">@round.ActualTricks[playerIndex]</span>
+                                                </div>
+                                                <div class="score-value @GetScoreColorClass(segmentIndex, roundInSegment, playerIndex, round.Scores[playerIndex])">@round.Scores[playerIndex]</div>
+                                            </div>
+                                        }
+                                        else if (HasBidsEntered(round) && !round.ActualTricks.Any(a => a.HasValue))
+                                        {
+                                            <div class="score-content pending">
+                                                <span class="bid-value">@FormatBid(round.Bids[playerIndex])</span>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <div class="score-content empty">—</div>
+                                        }
+                                    </td>
+                                }
+                            </tr>
+                            
+                            @* Update running totals for completed rounds *@
+                            @if (round.IsCompleted)
+                            {
+                                if (GameService.CurrentGame.PlayType == PlayType.Pairs)
+                                {
+                                    runningTotals[0] += round.Scores[0] + round.Scores[2];
+                                    runningTotals[1] += round.Scores[1] + round.Scores[3];
+                                }
+                                else
+                                {
+                                    for (int p = 0; p < 4; p++)
+                                    {
+                                        runningTotals[p] += round.Scores[p];
+                                    }
+                                }
+                            }
+                            
+                            globalRoundIndex++;
+                        }
+
+                        @* Segment subtotal *@
+                        <tr class="subtotal-row">
+                            <td class="subtotal-label">@Lang.T("subtotal")</td>
+                            @if (GameService.CurrentGame.PlayType == PlayType.Pairs)
+                            {
+                                var pairSubtotal1 = 0;
+                                var pairSubtotal2 = 0;
+                                
+                                foreach (var r in segment.Rounds.Where(r => r.IsCompleted))
+                                {
+                                    pairSubtotal1 += r.Scores[0] + r.Scores[2];
+                                    pairSubtotal2 += r.Scores[1] + r.Scores[3];
+                                }
+                                
+                                <td class="subtotal-value">@pairSubtotal1</td>
+                                <td class="subtotal-value">@pairSubtotal2</td>
+                                <td class="subtotal-value"></td>
+                                <td class="subtotal-value"></td>
+                            }
+                            else
+                            {
+                                @for (int p = 0; p < 4; p++)
+                                {
+                                    var playerIndex = p;
+                                    var playerSubtotal = segment.Rounds.Where(r => r.IsCompleted).Sum(r => r.Scores[playerIndex]);
+                                    <td class="subtotal-value">@playerSubtotal</td>
+                                }
+                            }
+                        </tr>
+
+                        @* Running total *@
+                        <tr class="total-row">
+                            <td class="total-label">@Lang.T("total")</td>
+                            @if (GameService.CurrentGame.PlayType == PlayType.Pairs)
+                            {
+                                <td class="total-value">@runningTotals[0]</td>
+                                <td class="total-value">@runningTotals[1]</td>
+                                <td class="total-value"></td>
+                                <td class="total-value"></td>
+                            }
+                            else
+                            {
+                                @for (int p = 0; p < 4; p++)
+                                {
+                                    <td class="total-value">@runningTotals[p]</td>
+                                }
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (showInputModal)
+        {
+            <div class="modal-overlay" @onclick="CloseModal">
+                <div class="modal-content" @onclick:stopPropagation="true">
+                    @if (inputMode == InputMode.Bids)
+                    {
+                        <h3>@Lang.T("enter_bids")</h3>
+                        <div class="input-display">
+                            @for (int i = 0; i < 4; i++)
+                            {
+                                var bidIndex = i;
+                                var actualPlayerIndex = bidOrder[bidIndex];
+                                var isCurrent = currentInputPlayer == bidIndex;
+                                var isCompleted = tempBids[actualPlayerIndex] >= 0;
+                                <div class="player-input @(isCurrent ? "active" : (isCompleted ? "completed" : ""))" @onclick="() => EditBidValue(bidIndex)">
+                                    <label>@GameService.CurrentGame.PlayerNames[actualPlayerIndex]</label>
+                                    <div class="input-value">@FormatBid(tempBids[actualPlayerIndex])</div>
+                                </div>
+                            }
+                        </div>
+                        @if (!string.IsNullOrEmpty(bidError))
+                        {
+                            <div class="error-message">@bidError</div>
+                        }
+                        <div class="numpad">
+                            @{
+                                var currentRoundForBid = GameService.CurrentGame.Segments[currentInputSegment].Rounds[currentInputRound];
+                                var maxBidValue = currentRoundForBid.CardsDealt;
+                            }
+                            @for (int i = 0; i <= maxBidValue; i++)
+                            {
+                                var num = i;
+                                <button class="numpad-btn" @onclick="() => SetBidValue(num)">
+                                    @(i == 0 ? "-" : i.ToString())
+                                </button>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <h3>@Lang.T("enter_actual")</h3>
+                        <div class="input-display">
+                            @for (int p = 0; p < 4; p++)
+                            {
+                                var playerIndex = p;
+                                if (tempActual[playerIndex].HasValue)
+                                {
+                                    <div class="player-input completed" @onclick="() => EditActualValue(playerIndex)">
+                                        <label>@GameService.CurrentGame.PlayerNames[playerIndex]</label>
+                                        <div class="input-value">@tempActual[playerIndex]</div>
+                                    </div>
+                                }
+                                else if (currentActualPlayer == playerIndex)
+                                {
+                                    <div class="player-input active">
+                                        <label>@GameService.CurrentGame.PlayerNames[playerIndex]</label>
+                                        <div class="input-value">—</div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="player-input">
+                                        <label>@GameService.CurrentGame.PlayerNames[playerIndex]</label>
+                                        <div class="input-value">—</div>
+                                    </div>
+                                }
+                            }
+                        </div>
+                        
+                        <div class="edit-bids-section">
+                            <button class="btn btn-link" @onclick="SwitchToEditBids">@Lang.T("edit") @Lang.T("bid")</button>
+                        </div>
+                        
+                        @if (!string.IsNullOrEmpty(bidError))
+                        {
+                            <div class="error-message">@bidError</div>
+                        }
+                        <div class="numpad">
+                            @{
+                                var currentRound = GameService.CurrentGame.Segments[currentInputSegment].Rounds[currentInputRound];
+                                var maxValue = currentRound.CardsDealt;
+                                var alreadyTaken = 0;
+                                for (int i = 0; i < 4; i++)
+                                {
+                                    if (i != currentActualPlayer && tempActual[i].HasValue)
+                                    {
+                                        alreadyTaken += tempActual[i].Value;
+                                    }
+                                }
+                                var remainingMax = maxValue - alreadyTaken;
+                            }
+                            @for (int i = 0; i <= remainingMax; i++)
+                            {
+                                var num = i;
+                                <button class="numpad-btn" @onclick="() => SetActualValue(num)">@i</button>
+                            }
+                        </div>
+                    }
+
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" @onclick="CloseModal">@Lang.T("cancel")</button>
+                        <button class="btn btn-primary" @onclick="SaveInput" disabled="@(!CanSaveActual())">@Lang.T("save")</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (showCompleteModal)
+        {
+            <div class="modal-overlay">
+                <div class="modal-content complete-modal">
+                    <h2>@Lang.T("game_complete")</h2>
+                    <div class="final-results">
+                        @{
+                            var finalScores = GameService.GetFinalScores();
+                            var maxScore = finalScores.Max();
+                            var winners = new List<int>();
+                            
+                            for (int i = 0; i < 4; i++)
+                            {
+                                if (finalScores[i] == maxScore)
+                                {
+                                    winners.Add(i);
+                                }
+                            }
+                        }
+                        
+                        <div class="winner-section">
+                            <h3>@(winners.Count > 1 ? Lang.T("winners") : Lang.T("winner"))</h3>
+                            @foreach (var winner in winners)
+                            {
+                                <div class="winner-name">🏆 @GetWinnerDisplayName(winner)</div>
+                            }
+                        </div>
+
+                        <h3>@Lang.T("final_scores")</h3>
+                        <div class="final-scores-list">
+                            @if (GameService.CurrentGame.PlayType == PlayType.Pairs)
+                            {
+                                <div class="score-item">
+                                    <span class="player-name">@Lang.T("pair") 1: @GameService.CurrentGame.PlayerNames[0] & @GameService.CurrentGame.PlayerNames[2]</span>
+                                    <span class="score-value">@finalScores[0]</span>
+                                </div>
+                                <div class="score-item">
+                                    <span class="player-name">@Lang.T("pair") 2: @GameService.CurrentGame.PlayerNames[1] & @GameService.CurrentGame.PlayerNames[3]</span>
+                                    <span class="score-value">@finalScores[1]</span>
+                                </div>
+                            }
+                            else
+                            {
+                                @for (int i = 0; i < 4; i++)
+                                {
+                                    var playerIndex = i;
+                                    <div class="score-item">
+                                        <span class="player-name">@GameService.CurrentGame.PlayerNames[playerIndex]</span>
+                                        <span class="score-value">@finalScores[playerIndex]</span>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" @onclick="ViewHistory">@Lang.T("view_history")</button>
+                        <button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/")'>@Lang.T("new_game")</button>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (showConfirmEndModal)
+        {
+            <div class="modal-overlay">
+                <div class="modal-content">
+                    <h2>@Lang.T("confirm_end_game")</h2>
+                    <p>@Lang.T("game_not_complete_warning")</p>
+                    <div class="modal-actions">
+                        <button class="btn btn-secondary" @onclick="CancelEndGame">@Lang.T("cancel")</button>
+                        <button class="btn btn-primary" @onclick="ConfirmEndGame">@Lang.T("finish_game")</button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private bool isLoaded = false;
+    private bool showInputModal = false;
+    private bool showCompleteModal = false;
+    private bool showConfirmEndModal = false;
+    private InputMode inputMode = InputMode.Bids;
+    private int currentInputSegment = 0;
+    private int currentInputRound = 0;
+    private int currentInputPlayer = 0;
+    private int currentActualPlayer = 0;
+    private int[] tempBids = new int[4] { -1, -1, -1, -1 };
+    private int?[] tempActual = new int?[4];
+    private string bidError = string.Empty;
+
+    private int[] bidOrder = new int[4];
+    private int firstBidderIndex = 0;
+
+    private enum InputMode
+    {
+        Bids,
+        Actual
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GameService.LoadCurrentGameAsync();
+        Lang.OnLanguageChanged += StateHasChanged;
+        isLoaded = true;
+    }
+
+    private string GetWinnerDisplayName(int winnerIndex)
+    {
+        if (GameService.CurrentGame == null) return "";
+        
+        if (GameService.CurrentGame.PlayType == PlayType.Pairs)
+        {
+            if (winnerIndex == 0)
+                return $"{GameService.CurrentGame.PlayerNames[0]} & {GameService.CurrentGame.PlayerNames[2]}";
+            else
+                return $"{GameService.CurrentGame.PlayerNames[1]} & {GameService.CurrentGame.PlayerNames[3]}";
+        }
+        
+        return GameService.CurrentGame.PlayerNames[winnerIndex];
+    }
+
+    private string FormatBid(int bid)
+    {
+        return bid == 0 ? "-" : (bid < 0 ? "—" : bid.ToString());
+    }
+
+    private string GetScoreColorClass(int segmentIndex, int roundIndex, int playerIndex, int score)
+    {
+        var segment = GameService.CurrentGame.Segments[segmentIndex];
+        var round = segment.Rounds[roundIndex];
+        
+        // Check if this is a penalty (bid > 0 but actual == 0)
+        if (round.ActualTricks[playerIndex].HasValue && 
+            round.Bids[playerIndex] > 0 && 
+            round.ActualTricks[playerIndex].Value == 0)
+        {
+            return "penalty";
+        }
+        
+        // Check if this score was doubled (bonus) by checking if segment is complete
+        // and if this player got all bids correct in the segment
+        if (segment.Rounds.All(r => r.IsCompleted))
+        {
+            bool allCorrect = segment.Rounds.All(r => 
+                r.ActualTricks[playerIndex].HasValue && 
+                r.Bids[playerIndex] == r.ActualTricks[playerIndex].Value);
+            
+            if (allCorrect)
+            {
+                // Find if this is the highest score for this player in this segment
+                int maxScore = segment.Rounds.Max(r => r.Scores[playerIndex]);
+                
+                // Find the LAST round with the highest score
+                int maxScoreRoundIndex = -1;
+                for (int i = segment.Rounds.Count - 1; i >= 0; i--)
+                {
+                    if (segment.Rounds[i].Scores[playerIndex] == maxScore)
+                    {
+                        maxScoreRoundIndex = i;
+                        break;
+                    }
+                }
+                
+                // If this is the round with the doubled score, mark it as bonus
+                if (maxScoreRoundIndex == roundIndex)
+                {
+                    return "bonus";
+                }
+            }
+        }
+        
+        return "";
+    }
+
+    private bool HasBidsEntered(RoundData round)
+    {
+        return round.Bids.Any(b => b != 0);
+    }
+
+    private bool IsCurrentRound(int segmentIndex, int roundIndex)
+    {
+        return segmentIndex == GameService.CurrentGame?.CurrentSegmentIndex 
+            && roundIndex == GameService.CurrentGame?.CurrentRoundIndex;
+    }
+
+    private void OpenRoundInput(int segmentIndex, int roundIndex, int playerIndex)
+    {
+        var round = GameService.CurrentGame!.Segments[segmentIndex].Rounds[roundIndex];
+        
+        currentInputSegment = segmentIndex;
+        currentInputRound = roundIndex;
+        currentInputPlayer = playerIndex;
+        bidError = string.Empty;
+
+        bool hasBids = HasBidsEntered(round);
+        bool hasActualTricks = round.ActualTricks.Any(a => a.HasValue);
+        
+        if (hasActualTricks)
+        {
+            // Round is complete, allow editing actual values or bids
+            inputMode = InputMode.Actual;
+            tempActual = (int?[])round.ActualTricks.Clone();
+            currentActualPlayer = Array.FindIndex(tempActual, t => !t.HasValue);
+            if (currentActualPlayer == -1) currentActualPlayer = 0;
+        }
+        else if (hasBids)
+        {
+            // Bids are entered, now enter actual tricks
+            inputMode = InputMode.Actual;
+            tempActual = new int?[4];
+            currentActualPlayer = 0;
+        }
+        else
+        {
+            // Enter bids - calculate bidding order
+            inputMode = InputMode.Bids;
+            tempBids = new int[4] { -1, -1, -1, -1 };
+            
+            firstBidderIndex = (GameService.CurrentGame.CurrentDealerIndex + 1) % 4;
+            for (int i = 0; i < 4; i++)
+            {
+                bidOrder[i] = (firstBidderIndex + i) % 4;
+            }
+            
+            currentInputPlayer = 0;
+        }
+
+        showInputModal = true;
+    }
+
+    private void SetBidValue(int value)
+    {
+        if (currentInputPlayer >= 4) return;
+        
+        var round = GameService.CurrentGame!.Segments[currentInputSegment].Rounds[currentInputRound];
+        int actualPlayerIndex = bidOrder[currentInputPlayer];
+        
+        if (currentInputPlayer == 3)
+        {
+            if (!GameService.CanLastPlayerBid(tempBids, value, round.CardsDealt, actualPlayerIndex))
+            {
+                bidError = Lang.T("bid_sum_error");
+                return;
+            }
+        }
+        
+        tempBids[actualPlayerIndex] = value;
+        currentInputPlayer++;
+        bidError = string.Empty;
+    }
+
+    private void EditBidValue(int bidIndex)
+    {
+        // Allow editing a previously entered bid
+        if (bidIndex < tempBids.Length)
+        {
+            int actualPlayerIndex = bidOrder[bidIndex];
+            tempBids[actualPlayerIndex] = -1;
+            currentInputPlayer = bidIndex;
+            
+            // Clear all subsequent bids
+            for (int i = bidIndex + 1; i < 4; i++)
+            {
+                tempBids[bidOrder[i]] = -1;
+            }
+            
+            bidError = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    private void SwitchToEditBids()
+    {
+        var round = GameService.CurrentGame!.Segments[currentInputSegment].Rounds[currentInputRound];
+        
+        // Load existing bids
+        tempBids = (int[])round.Bids.Clone();
+        
+        // Calculate bidding order
+        firstBidderIndex = (GameService.CurrentGame.CurrentDealerIndex + 1) % 4;
+        for (int i = 0; i < 4; i++)
+        {
+            bidOrder[i] = (firstBidderIndex + i) % 4;
+        }
+        
+        currentInputPlayer = 0;
+        inputMode = InputMode.Bids;
+        bidError = string.Empty;
+        StateHasChanged();
+    }
+
+    private void EditActualValue(int playerIndex)
+    {
+        // Allow editing any player's value
+        tempActual[playerIndex] = null;
+        currentActualPlayer = playerIndex;
+        
+        // Clear all subsequent players
+        for (int i = playerIndex + 1; i < 4; i++)
+        {
+            tempActual[i] = null;
+        }
+        
+        StateHasChanged();
+    }
+
+    private void SetActualValue(int value)
+    {
+        var round = GameService.CurrentGame!.Segments[currentInputSegment].Rounds[currentInputRound];
+        
+        tempActual[currentActualPlayer] = value;
+        bidError = string.Empty;
+        
+        // Calculate total taken so far
+        int totalTaken = 0;
+        int unfilledCount = 0;
+        for (int i = 0; i < 4; i++)
+        {
+            if (tempActual[i].HasValue)
+            {
+                totalTaken += tempActual[i].Value;
+            }
+            else
+            {
+                unfilledCount++;
+            }
+        }
+        
+        int remaining = round.CardsDealt - totalTaken;
+        
+        // If we've reached the total, fill remaining slots with 0
+        if (remaining == 0 && unfilledCount > 0)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                if (!tempActual[i].HasValue)
+                {
+                    tempActual[i] = 0;
+                }
+            }
+            currentActualPlayer = 3; // Move to last player for completion
+        }
+        // If only one player remains unfilled, auto-fill them
+        else if (unfilledCount == 1 && remaining >= 0 && remaining <= round.CardsDealt)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                if (!tempActual[i].HasValue)
+                {
+                    tempActual[i] = remaining;
+                    currentActualPlayer = i;
+                    break;
+                }
+            }
+        }
+        // Otherwise, move to the next unfilled player
+        else if (currentActualPlayer < 3)
+        {
+            // Find next unfilled player
+            for (int i = currentActualPlayer + 1; i < 4; i++)
+            {
+                if (!tempActual[i].HasValue)
+                {
+                    currentActualPlayer = i;
+                    break;
+                }
+            }
+        }
+        
+        StateHasChanged();
+    }
+
+    private bool CanSaveActual()
+    {
+        if (inputMode != InputMode.Actual) return true;
+        
+        return tempActual.All(t => t.HasValue);
+    }
+
+    private async Task SaveInput()
+    {
+        var round = GameService.CurrentGame!.Segments[currentInputSegment].Rounds[currentInputRound];
+
+        if (inputMode == InputMode.Bids)
+        {
+            if (tempBids.Any(b => b < 0))
+            {
+                bidError = "Please enter bids for all players";
+                return;
+            }
+
+            if (!GameService.ValidateBids(tempBids, round.CardsDealt))
+            {
+                bidError = Lang.T("bid_sum_error");
+                return;
+            }
+
+            round.Bids = tempBids;
+            
+            // If actual tricks already exist, recalculate scores
+            if (round.ActualTricks.All(a => a.HasValue))
+            {
+                for (int p = 0; p < 4; p++)
+                {
+                    round.Scores[p] = GameService.CalculateScore(
+                        round.Bids[p],
+                        round.ActualTricks[p]!.Value,
+                        round.CardsDealt,
+                        GameService.CurrentGame.Segments[currentInputSegment].SegmentNumber,
+                        GameService.CurrentGame.Mode
+                    );
+                }
+                
+                var segment = GameService.CurrentGame.Segments[currentInputSegment];
+                if (segment.Rounds.All(r => r.IsCompleted))
+                {
+                    GameService.CalculateSegmentBonuses(segment, GameService.CurrentGame.Mode);
+                    
+                    for (int p = 0; p < 4; p++)
+                    {
+                        segment.Subtotals[p] = segment.Rounds.Sum(r => r.Scores[p]);
+                    }
+                }
+                
+                await GameService.SaveCurrentGameAsync();
+                CloseModal();
+                StateHasChanged();
+            }
+            else
+            {
+                // No actual tricks yet, switch to entering them
+                await GameService.SaveCurrentGameAsync();
+                
+                inputMode = InputMode.Actual;
+                tempActual = new int?[4];
+                currentActualPlayer = 0;
+                bidError = string.Empty;
+                StateHasChanged();
+            }
+            return;
+        }
+        else
+        {
+            if (!tempActual.All(t => t.HasValue))
+            {
+                bidError = "Please enter actual tricks for all players";
+                return;
+            }
+            
+            int totalActual = tempActual.Sum(t => t!.Value);
+            if (totalActual != round.CardsDealt)
+            {
+                bidError = $"Total tricks ({totalActual}) must equal cards dealt ({round.CardsDealt})";
+                return;
+            }
+            
+            // Check if this round was already completed (we're editing)
+            bool wasAlreadyCompleted = round.IsCompleted;
+            
+            round.ActualTricks = tempActual;
+
+            for (int p = 0; p < 4; p++)
+            {
+                round.Scores[p] = GameService.CalculateScore(
+                    round.Bids[p],
+                    round.ActualTricks[p]!.Value,
+                    round.CardsDealt,
+                    GameService.CurrentGame.Segments[currentInputSegment].SegmentNumber,
+                    GameService.CurrentGame.Mode
+                );
+            }
+
+            var segment = GameService.CurrentGame.Segments[currentInputSegment];
+            if (segment.Rounds.All(r => r.IsCompleted))
+            {
+                GameService.CalculateSegmentBonuses(segment, GameService.CurrentGame.Mode);
+                
+                for (int p = 0; p < 4; p++)
+                {
+                    segment.Subtotals[p] = segment.Rounds.Sum(r => r.Scores[p]);
+                }
+            }
+
+            // Only advance to next round and dealer if this was a new completion
+            if (!wasAlreadyCompleted)
+            {
+                AdvanceToNextRound();
+            }
+
+            await GameService.SaveCurrentGameAsync();
+            CloseModal();
+            StateHasChanged();
+        }
+    }
+
+    private void AdvanceToNextRound()
+    {
+        var segment = GameService.CurrentGame!.Segments[currentInputSegment];
+        
+        if (currentInputRound < segment.Rounds.Count - 1)
+        {
+            GameService.CurrentGame.CurrentRoundIndex++;
+        }
+        else if (currentInputSegment < GameService.CurrentGame.Segments.Count - 1)
+        {
+            GameService.CurrentGame.CurrentSegmentIndex++;
+            GameService.CurrentGame.CurrentRoundIndex = 0;
+        }
+
+        GameService.CurrentGame.AdvanceDealer();
+    }
+
+    private void CloseModal()
+    {
+        showInputModal = false;
+        bidError = string.Empty;
+    }
+
+    private async Task FinishGame()
+    {
+        bool allComplete = GameService.CurrentGame!.Segments.All(s => s.Rounds.All(r => r.IsCompleted));
+        
+        if (allComplete)
+        {
+            showCompleteModal = true;
+            await GameService.CompleteGameAsync();
+        }
+        else
+        {
+            // Game is not complete, show confirmation dialog
+            showConfirmEndModal = true;
+        }
+    }
+
+    private async Task ConfirmEndGame()
+    {
+        showConfirmEndModal = false;
+        showCompleteModal = true;
+        await GameService.CompleteGameAsync();
+    }
+
+    private void CancelEndGame()
+    {
+        showConfirmEndModal = false;
+    }
+    
+    private void ViewHistory()
+    {
+        Navigation.NavigateTo("/history");
+    }
+
+    public void Dispose()
+    {
+        Lang.OnLanguageChanged -= StateHasChanged;
+    }
+}
