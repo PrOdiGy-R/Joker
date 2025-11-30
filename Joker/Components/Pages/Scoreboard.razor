@@ -5,6 +5,7 @@
 @inject GameService GameService
 @inject LanguageService Lang
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 @implements IDisposable
 
 <PageTitle>@Lang.T("scoreboard_title")</PageTitle>
@@ -47,9 +48,29 @@ else
             </div>
         </div>
 
+        <!-- Sticky player names header -->
+        <div class="sticky-player-header" style="display: none;">
+            <div class="sticky-header-inner">
+                <div class="sticky-cards-column">@Lang.T("cards")</div>
+                @for (int p = 0; p < 4; p++)
+                {
+                    var playerIndex = p;
+                    <div class="sticky-player-column">
+                        <div class="player-header">
+                            <span>@GameService.CurrentGame.PlayerNames[playerIndex]</span>
+                            @if (GameService.CurrentGame.CurrentDealerIndex == playerIndex)
+                            {
+                                <span class="dealer-badge">🃏</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
         <div class="scoreboard-container">
             <table class="scoreboard-table">
-                <thead>
+                <thead class="table-header">
                     <tr>
                         <th class="cards-column">@Lang.T("cards")</th>
                         @for (int p = 0; p < 4; p++)
@@ -404,6 +425,24 @@ else
         await GameService.LoadCurrentGameAsync();
         Lang.OnLanguageChanged += StateHasChanged;
         isLoaded = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && GameService.CurrentGame != null)
+        {
+            await JS.InvokeVoidAsync("eval", @"
+                if (!window.scoreboardStickyHeaderInitialized) {
+                    const script = document.createElement('script');
+                    script.src = '/scoreboard.js';
+                    script.onload = function() {
+                        window.scoreboardStickyHeader.init();
+                        window.scoreboardStickyHeaderInitialized = true;
+                    };
+                    document.body.appendChild(script);
+                }
+            ");
+        }
     }
 
     private string GetWinnerDisplayName(int winnerIndex)
