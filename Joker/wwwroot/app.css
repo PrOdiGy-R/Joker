@@ -429,6 +429,10 @@ body {
     color: #dc3545 !important;
 }
 
+.score-value.deduction {
+    color: #dc3545 !important;
+}
+
 .score-value.bonus {
     color: #28a745;
 }

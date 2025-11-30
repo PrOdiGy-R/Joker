@@ -184,8 +184,15 @@ public class GameService
     
     public void CalculateSegmentBonuses(SegmentData segment, GameMode mode)
     {
-        // Reset bonuses
+        // Reset bonuses and tracking flags
         segment.BonusAdjustments = new int[4];
+        
+        // Clear all bonus/deduction flags
+        foreach (var round in segment.Rounds)
+        {
+            round.HasBonus = new bool[4];
+            round.HasDeduction = new bool[4];
+        }
         
         // Check who guessed all rounds correctly
         bool[] allCorrect = new bool[4];
@@ -216,6 +223,7 @@ public class GameService
                 
                 // Double the highest score
                 segment.Rounds[maxScoreRoundIndex].Scores[p] *= 2;
+                segment.Rounds[maxScoreRoundIndex].HasBonus[p] = true;
                 segment.BonusAdjustments[p] += maxScore; // Track the bonus added
                 
                 // Deduct from opponents
@@ -256,14 +264,33 @@ public class GameService
     
     private void ApplyDeduction(SegmentData segment, int playerIndex)
     {
-        // Find highest score
-        int maxScore = segment.Rounds.Max(r => r.Scores[playerIndex]);
+        // Find all rounds with scores, excluding certain types
+        var eligibleRounds = segment.Rounds
+            .Select((r, idx) => new { Round = r, Index = idx, Score = r.Scores[playerIndex] })
+            .Where(x => 
+                x.Score > 0 && // Must have positive score
+                x.Index != segment.Rounds.Count - 1 && // Not the last round
+                !(x.Round.Bids[playerIndex] == 0 && x.Round.ActualTricks[playerIndex] == 0)) // Not a 0 bid/0 actual (50 points)
+            .OrderByDescending(x => x.Score)
+            .ToList();
         
-        // Find LAST round with highest score
+        if (!eligibleRounds.Any())
+        {
+            // No eligible rounds to deduct from
+            return;
+        }
+        
+        // Get the highest eligible score
+        var highestEligible = eligibleRounds[0];
+        int maxScore = highestEligible.Score;
+        
+        // Find the LAST round with the highest eligible score
         int maxScoreRoundIndex = -1;
         for (int i = segment.Rounds.Count - 1; i >= 0; i--)
         {
-            if (segment.Rounds[i].Scores[playerIndex] == maxScore)
+            if (i != segment.Rounds.Count - 1 && // Not last round
+                segment.Rounds[i].Scores[playerIndex] == maxScore &&
+                !(segment.Rounds[i].Bids[playerIndex] == 0 && segment.Rounds[i].ActualTricks[playerIndex] == 0)) // Not 0/0
             {
                 maxScoreRoundIndex = i;
                 break;
@@ -272,31 +299,8 @@ public class GameService
         
         if (maxScoreRoundIndex >= 0)
         {
-            // If it's the last round of the segment, use next-highest
-            if (maxScoreRoundIndex == segment.Rounds.Count - 1)
-            {
-                // Find next highest score
-                var scoresExcludingMax = segment.Rounds
-                    .Select((r, idx) => new { Score = r.Scores[playerIndex], Index = idx })
-                    .Where(x => x.Index != maxScoreRoundIndex || x.Score != maxScore)
-                    .OrderByDescending(x => x.Score)
-                    .ToList();
-                
-                if (scoresExcludingMax.Any())
-                {
-                    var nextHighest = scoresExcludingMax[0];
-                    maxScoreRoundIndex = nextHighest.Index;
-                    maxScore = nextHighest.Score;
-                }
-                else
-                {
-                    // If all rounds have the same score, deduct that score from any round
-                    maxScore = segment.Rounds[0].Scores[playerIndex];
-                    maxScoreRoundIndex = 0;
-                }
-            }
-            
             segment.Rounds[maxScoreRoundIndex].Scores[playerIndex] -= maxScore;
+            segment.Rounds[maxScoreRoundIndex].HasDeduction[playerIndex] = true;
             segment.BonusAdjustments[playerIndex] -= maxScore;
         }
     }

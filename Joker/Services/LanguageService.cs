@@ -26,7 +26,7 @@ public class LanguageService
             
             // Scoreboard
             ["scoreboard_title"] = "Scoreboard",
-            ["cards"] = "Rounds",
+            ["cards"] = "",
             ["segment"] = "Segment",
             ["subtotal"] = "Subtotal",
             ["total"] = "Total",
@@ -83,7 +83,7 @@ public class LanguageService
             
             // Scoreboard
             ["scoreboard_title"] = "ცოლები და ქმრები",
-            ["cards"] = "ხელი",
+            ["cards"] = "",
             ["segment"] = "პულკა",
             ["subtotal"] = "ჯამი",
             ["total"] = "სულ",

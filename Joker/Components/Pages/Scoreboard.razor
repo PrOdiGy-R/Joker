@@ -478,36 +478,16 @@ else
             return "penalty";
         }
         
-        // Check if this score was doubled (bonus) by checking if segment is complete
-        // and if this player got all bids correct in the segment
-        if (segment.Rounds.All(r => r.IsCompleted))
+        // Check if this round has a deduction applied
+        if (round.HasDeduction[playerIndex])
         {
-            bool allCorrect = segment.Rounds.All(r => 
-                r.ActualTricks[playerIndex].HasValue && 
-                r.Bids[playerIndex] == r.ActualTricks[playerIndex].Value);
-            
-            if (allCorrect)
-            {
-                // Find if this is the highest score for this player in this segment
-                int maxScore = segment.Rounds.Max(r => r.Scores[playerIndex]);
-                
-                // Find the LAST round with the highest score
-                int maxScoreRoundIndex = -1;
-                for (int i = segment.Rounds.Count - 1; i >= 0; i--)
-                {
-                    if (segment.Rounds[i].Scores[playerIndex] == maxScore)
-                    {
-                        maxScoreRoundIndex = i;
-                        break;
-                    }
-                }
-                
-                // If this is the round with the doubled score, mark it as bonus
-                if (maxScoreRoundIndex == roundIndex)
-                {
-                    return "bonus";
-                }
-            }
+            return "deduction";
+        }
+        
+        // Check if this score was doubled (bonus) by checking if this round has bonus flag
+        if (round.HasBonus[playerIndex])
+        {
+            return "bonus";
         }
         
         return "";
@@ -738,29 +718,39 @@ else
 
             round.Bids = tempBids;
             
-            // If actual tricks already exist, recalculate scores
+            // If actual tricks already exist, recalculate scores for this round and segment bonuses
             if (round.ActualTricks.All(a => a.HasValue))
             {
-                for (int p = 0; p < 4; p++)
+                var segment = GameService.CurrentGame.Segments[currentInputSegment];
+                
+                // Recalculate all base scores in the segment first
+                foreach (var r in segment.Rounds)
                 {
-                    round.Scores[p] = GameService.CalculateScore(
-                        round.Bids[p],
-                        round.ActualTricks[p]!.Value,
-                        round.CardsDealt,
-                        GameService.CurrentGame.Segments[currentInputSegment].SegmentNumber,
-                        GameService.CurrentGame.Mode
-                    );
+                    for (int p = 0; p < 4; p++)
+                    {
+                        if (r.ActualTricks[p].HasValue)
+                        {
+                            r.Scores[p] = GameService.CalculateScore(
+                                r.Bids[p],
+                                r.ActualTricks[p]!.Value,
+                                r.CardsDealt,
+                                segment.SegmentNumber,
+                                GameService.CurrentGame.Mode
+                            );
+                        }
+                    }
                 }
                 
-                var segment = GameService.CurrentGame.Segments[currentInputSegment];
+                // If segment is complete, recalculate bonuses/deductions
                 if (segment.Rounds.All(r => r.IsCompleted))
                 {
                     GameService.CalculateSegmentBonuses(segment, GameService.CurrentGame.Mode);
-                    
-                    for (int p = 0; p < 4; p++)
-                    {
-                        segment.Subtotals[p] = segment.Rounds.Sum(r => r.Scores[p]);
-                    }
+                }
+                
+                // Recalculate subtotals
+                for (int p = 0; p < 4; p++)
+                {
+                    segment.Subtotals[p] = segment.Rounds.Sum(r => r.Scores[p]);
                 }
                 
                 await GameService.SaveCurrentGameAsync();
@@ -800,26 +790,36 @@ else
             
             round.ActualTricks = tempActual;
 
-            for (int p = 0; p < 4; p++)
+            var segment = GameService.CurrentGame.Segments[currentInputSegment];
+            
+            // Recalculate all base scores in the segment
+            foreach (var r in segment.Rounds)
             {
-                round.Scores[p] = GameService.CalculateScore(
-                    round.Bids[p],
-                    round.ActualTricks[p]!.Value,
-                    round.CardsDealt,
-                    GameService.CurrentGame.Segments[currentInputSegment].SegmentNumber,
-                    GameService.CurrentGame.Mode
-                );
+                for (int p = 0; p < 4; p++)
+                {
+                    if (r.ActualTricks[p].HasValue)
+                    {
+                        r.Scores[p] = GameService.CalculateScore(
+                            r.Bids[p],
+                            r.ActualTricks[p]!.Value,
+                            r.CardsDealt,
+                            segment.SegmentNumber,
+                            GameService.CurrentGame.Mode
+                        );
+                    }
+                }
             }
 
-            var segment = GameService.CurrentGame.Segments[currentInputSegment];
+            // If segment is complete, recalculate bonuses/deductions
             if (segment.Rounds.All(r => r.IsCompleted))
             {
                 GameService.CalculateSegmentBonuses(segment, GameService.CurrentGame.Mode);
-                
-                for (int p = 0; p < 4; p++)
-                {
-                    segment.Subtotals[p] = segment.Rounds.Sum(r => r.Scores[p]);
-                }
+            }
+            
+            // Recalculate subtotals
+            for (int p = 0; p < 4; p++)
+            {
+                segment.Subtotals[p] = segment.Rounds.Sum(r => r.Scores[p]);
             }
 
             // Only advance to next round and dealer if this was a new completion

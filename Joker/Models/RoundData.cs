@@ -7,4 +7,8 @@ public class RoundData
     public int?[] ActualTricks { get; set; } = new int?[4];
     public int[] Scores { get; set; } = new int[4];
     public bool IsCompleted => ActualTricks.All(x => x.HasValue);
+    
+    // Track which players have bonuses/deductions applied in this round
+    public bool[] HasBonus { get; set; } = new bool[4];
+    public bool[] HasDeduction { get; set; } = new bool[4];
 }
