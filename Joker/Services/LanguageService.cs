@@ -26,7 +26,7 @@ public class LanguageService
             
             // Scoreboard
             ["scoreboard_title"] = "Scoreboard",
-            ["cards"] = "Cards",
+            ["cards"] = "Rounds",
             ["segment"] = "Segment",
             ["subtotal"] = "Subtotal",
             ["total"] = "Total",
@@ -83,7 +83,7 @@ public class LanguageService
             
             // Scoreboard
             ["scoreboard_title"] = "ცოლები და ქმრები",
-            ["cards"] = "კარტები",
+            ["cards"] = "ხელი",
             ["segment"] = "პულკა",
             ["subtotal"] = "ჯამი",
             ["total"] = "სულ",
@@ -99,8 +99,8 @@ public class LanguageService
             ["new_game"] = "ახალი თამაში",
             ["view_history"] = "ისტორიის ნახვა",
             ["bid_sum_error"] = "ვზიატკების ჯამი არ უნდა იყოს კარტების რაოდენობის ტოლი!",
-            ["confirm_end_game"] = "თამაშის ადრე დასრულების დადასტურება?",
-            ["game_not_complete_warning"] = "თამაში ჯერ არ არის დასრულებული. თქვენ ნამდვილად გსურთ მიმდინარე ქულების შენახვა?",
+            ["confirm_end_game"] = "რაო ნებდებით? სემიჩკაა",
+            ["game_not_complete_warning"] = "უეჭ ნებდებით? იშო ნე ვეჩერ",
             
             // Game complete
             ["game_complete"] = "თამაში დასრულდა!",
