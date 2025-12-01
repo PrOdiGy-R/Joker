@@ -10,7 +10,7 @@ builder.Services.AddRazorComponents()
 // Register application services
 builder.Services.AddScoped<LocalStorageService>();
 builder.Services.AddScoped<GameService>();
-builder.Services.AddSingleton<LanguageService>();
+builder.Services.AddScoped<LanguageService>();
 
 var app = builder.Build();
 

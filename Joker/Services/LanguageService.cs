@@ -4,7 +4,7 @@ public class LanguageService
 {
     public event Action? OnLanguageChanged;
     
-    public string CurrentLanguage { get; private set; } = "en";
+    public string CurrentLanguage { get; private set; } = "ka";
     
     private readonly Dictionary<string, Dictionary<string, string>> _translations = new()
     {
