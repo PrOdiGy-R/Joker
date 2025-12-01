@@ -165,11 +165,11 @@
                                                     </div>
                                                     @if (round.HasDeduction[playerIndex])
                                                     {
-                                                        <div class="score-value deduction strikethrough">@FormatScore(round.OriginalScores[playerIndex])</div>
+                                                        <div class="score-value deduction strikethrough">@FormatRoundScore(round.OriginalScores[playerIndex])</div>
                                                     }
                                                     else
                                                     {
-                                                        <div class="score-value @GetScoreColorClass(round, playerIndex, round.Scores[playerIndex])">@FormatScore(round.Scores[playerIndex])</div>
+                                                        <div class="score-value @GetScoreColorClass(round, playerIndex, round.Scores[playerIndex])">@FormatRoundScore(round.Scores[playerIndex])</div>
                                                     }
                                                 </div>
                                             }
@@ -310,9 +310,15 @@
         return bid == 0 ? "-" : (bid < 0 ? "—" : bid.ToString());
     }
 
+    private string FormatRoundScore(int score)
+    {
+        // Display round scores as integers (no decimal conversion)
+        return score.ToString();
+    }
+
     private string FormatScore(int score)
     {
-        // Convert score to decimal format (divide by 100)
+        // Convert score to decimal format (divide by 100) - for totals and subtotals
         double decimalScore = score / 100.0;
         return decimalScore.ToString("F1");
     }
