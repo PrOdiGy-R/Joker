@@ -10,89 +10,285 @@
 <PageTitle>@Lang.T("history_title")</PageTitle>
 
 <div class="history-page">
-    <div class="history-header">
-        <h1>@Lang.T("history_title")</h1>
-        <div class="language-selector">
-            <button class="@(Lang.CurrentLanguage == "en" ? "active" : "")" 
-                    @onclick='() => Lang.SetLanguage("en")'>EN</button>
-            <button class="@(Lang.CurrentLanguage == "ka" ? "active" : "")" 
-                    @onclick='() => Lang.SetLanguage("ka")'>ქარ</button>
-        </div>
-    </div>
-
-    <div class="history-container">
-        @if (historyList.Count == 0)
-        {
-            <div class="no-history">
-                <p>@Lang.T("no_history")</p>
+    @if (selectedGame == null)
+    {
+        @* Game list view *@
+        <div class="history-header">
+            <h1>@Lang.T("history_title")</h1>
+            <div class="language-selector">
+                <button class="@(Lang.CurrentLanguage == "en" ? "active" : "")" 
+                        @onclick='() => Lang.SetLanguage("en")'>EN</button>
+                <button class="@(Lang.CurrentLanguage == "ka" ? "active" : "")" 
+                        @onclick='() => Lang.SetLanguage("ka")'>ქარ</button>
             </div>
-        }
-        else
-        {
-            @foreach (var game in historyList)
+        </div>
+
+        <div class="history-container">
+            @if (historyList.Count == 0)
             {
-                <div class="history-card">
-                    <div class="history-card-header">
-                        <div class="game-info">
-                            <span class="game-mode">@GetModeName(game.Mode)</span>
-                            <span class="game-type">@GetPlayTypeName(game.PlayType)</span>
-                        </div>
-                        <div class="game-date">
-                            @game.CompletedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
-                        </div>
-                    </div>
-                    
-                    <div class="history-scores">
-                        @if (game.PlayType == PlayType.Pairs)
-                        {
-                            <div class="score-row winner">
-                                <span class="player-name">
-                                    🏆 @Lang.T("pair") 1: @game.PlayerNames[0] & @game.PlayerNames[2]
-                                </span>
-                                <span class="score-value">@game.FinalScores[0]</span>
-                            </div>
-                            <div class="score-row">
-                                <span class="player-name">
-                                    @Lang.T("pair") 2: @game.PlayerNames[1] & @game.PlayerNames[3]
-                                </span>
-                                <span class="score-value">@game.FinalScores[1]</span>
-                            </div>
-                        }
-                        else
-                        {
-                            var maxScore = game.FinalScores.Max();
-                            @for (int i = 0; i < 4; i++)
-                            {
-                                var index = i;
-                                var isWinner = game.FinalScores[index] == maxScore;
-                                <div class="score-row @(isWinner ? "winner" : "")">
-                                    <span class="player-name">
-                                        @(isWinner ? "🏆 " : "")@game.PlayerNames[index]
-                                    </span>
-                                    <span class="score-value">@game.FinalScores[index]</span>
-                                </div>
-                            }
-                        }
-                    </div>
+                <div class="no-history">
+                    <p>@Lang.T("no_history")</p>
                 </div>
             }
-        }
-    </div>
+            else
+            {
+                @foreach (var game in historyList)
+                {
+                    <div class="history-card" @onclick="() => ViewGameDetails(game)">
+                        <div class="history-card-header">
+                            <div class="game-info">
+                                <span class="game-mode">@GetModeName(game.Mode)</span>
+                                <span class="game-type">@GetPlayTypeName(game.PlayType)</span>
+                            </div>
+                            <div class="game-date">
+                                @game.CompletedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")
+                            </div>
+                        </div>
+                        
+                        <div class="history-scores">
+                            @if (game.PlayType == PlayType.Pairs)
+                            {
+                                var maxScore = game.FinalScores.Max();
+                                var pair1Score = game.FinalScores[0];
+                                var pair2Score = game.FinalScores[1];
+                                
+                                <div class="score-row @(pair1Score >= pair2Score ? "winner" : "")">
+                                    <span class="player-name">
+                                        @(pair1Score >= pair2Score ? "🏆 " : "")@Lang.T("pair") 1: @game.PlayerNames[0] & @game.PlayerNames[2]
+                                    </span>
+                                    <span class="score-value">@FormatScore(pair1Score)</span>
+                                </div>
+                                <div class="score-row @(pair2Score > pair1Score ? "winner" : "")">
+                                    <span class="player-name">
+                                        @(pair2Score > pair1Score ? "🏆 " : "")@Lang.T("pair") 2: @game.PlayerNames[1] & @game.PlayerNames[3]
+                                    </span>
+                                    <span class="score-value">@FormatScore(pair2Score)</span>
+                                </div>
+                            }
+                            else
+                            {
+                                var maxScore = game.FinalScores.Max();
+                                @for (int i = 0; i < 4; i++)
+                                {
+                                    var index = i;
+                                    var isWinner = game.FinalScores[index] == maxScore;
+                                    <div class="score-row @(isWinner ? "winner" : "")">
+                                        <span class="player-name">
+                                            @(isWinner ? "🏆 " : "")@game.PlayerNames[index]
+                                        </span>
+                                        <span class="score-value">@FormatScore(game.FinalScores[index])</span>
+                                    </div>
+                                }
+                            }
+                        </div>
+                        
+                        <div class="history-card-actions" @onclick:stopPropagation="true">
+                            <button class="btn btn-danger btn-sm" @onclick="() => ConfirmDelete(game)">
+                                @Lang.T("delete")
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
 
-    <div class="history-actions">
-        <button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/")'>
-            @Lang.T("back")
-        </button>
-    </div>
+        <div class="history-actions">
+            <button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/")'>
+                @Lang.T("back")
+            </button>
+        </div>
+    }
+    else
+    {
+        @* Game detail view - read-only scoreboard *@
+        <div class="scoreboard-page history-scoreboard">
+            <div class="scoreboard-header">
+                <div class="header-left">
+                    <h1>@Lang.T("history_title") - @selectedGame.CompletedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</h1>
+                    <div class="language-selector">
+                        <button class="@(Lang.CurrentLanguage == "en" ? "active" : "")" 
+                                @onclick='() => Lang.SetLanguage("en")'>EN</button>
+                        <button class="@(Lang.CurrentLanguage == "ka" ? "active" : "")" 
+                                @onclick='() => Lang.SetLanguage("ka")'>ქარ</button>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-secondary" @onclick="BackToList">
+                        @Lang.T("back")
+                    </button>
+                </div>
+            </div>
+
+            <div class="scoreboard-container">
+                <table class="scoreboard-table">
+                    <thead class="table-header">
+                        <tr>
+                            <th class="cards-column">@Lang.T("cards")</th>
+                            @for (int p = 0; p < 4; p++)
+                            {
+                                var playerIndex = p;
+                                <th class="player-column">
+                                    <div class="player-header">
+                                        <span>@selectedGame.PlayerNames[playerIndex]</span>
+                                    </div>
+                                </th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            int[] runningTotals = new int[4];
+                        }
+                        @foreach (var segment in selectedGame.Segments)
+                        {
+                            <tr class="segment-header-row">
+                                <td colspan="5" class="segment-header">
+                                    @Lang.T("segment") @segment.SegmentNumber
+                                </td>
+                            </tr>
+
+                            @foreach (var round in segment.Rounds)
+                            {
+                                <tr class="round-row">
+                                    <td class="cards-cell">@round.CardsDealt</td>
+                                    @for (int p = 0; p < 4; p++)
+                                    {
+                                        var playerIndex = p;
+                                        <td class="score-cell">
+                                            @if (round.ActualTricks[playerIndex].HasValue)
+                                            {
+                                                <div class="score-content completed">
+                                                    <div class="bid-actual">
+                                                        <span class="bid-value">@FormatBid(round.Bids[playerIndex])</span>
+                                                        <span class="separator">→</span>
+                                                        <span class="actual-value">@round.ActualTricks[playerIndex]</span>
+                                                    </div>
+                                                    @if (round.HasDeduction[playerIndex])
+                                                    {
+                                                        <div class="score-value deduction strikethrough">@FormatScore(round.OriginalScores[playerIndex])</div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="score-value @GetScoreColorClass(round, playerIndex, round.Scores[playerIndex])">@FormatScore(round.Scores[playerIndex])</div>
+                                                    }
+                                                </div>
+                                            }
+                                            else
+                                            {
+                                                <div class="score-content empty">—</div>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                                
+                                @* Update running totals for completed rounds *@
+                                @if (round.IsCompleted)
+                                {
+                                    if (selectedGame.PlayType == PlayType.Pairs)
+                                    {
+                                        runningTotals[0] += round.Scores[0] + round.Scores[2];
+                                        runningTotals[1] += round.Scores[1] + round.Scores[3];
+                                    }
+                                    else
+                                    {
+                                        for (int p = 0; p < 4; p++)
+                                        {
+                                            runningTotals[p] += round.Scores[p];
+                                        }
+                                    }
+                                }
+                            }
+
+                            @* Segment subtotal *@
+                            <tr class="subtotal-row">
+                                <td class="subtotal-label">@Lang.T("subtotal")</td>
+                                @if (selectedGame.PlayType == PlayType.Pairs)
+                                {
+                                    var pairSubtotal1 = 0;
+                                    var pairSubtotal2 = 0;
+                                    
+                                    foreach (var r in segment.Rounds.Where(r => r.IsCompleted))
+                                    {
+                                        pairSubtotal1 += r.Scores[0] + r.Scores[2];
+                                        pairSubtotal2 += r.Scores[1] + r.Scores[3];
+                                    }
+                                    
+                                    <td class="subtotal-value">@FormatScore(pairSubtotal1)</td>
+                                    <td class="subtotal-value">@FormatScore(pairSubtotal2)</td>
+                                    <td class="subtotal-value"></td>
+                                    <td class="subtotal-value"></td>
+                                }
+                                else
+                                {
+                                    @for (int p = 0; p < 4; p++)
+                                    {
+                                        var playerIndex = p;
+                                        var playerSubtotal = segment.Rounds.Where(r => r.IsCompleted).Sum(r => r.Scores[playerIndex]);
+                                        <td class="subtotal-value">@FormatScore(playerSubtotal)</td>
+                                    }
+                                }
+                            </tr>
+
+                            @* Running total *@
+                            <tr class="total-row">
+                                <td class="total-label">@Lang.T("total")</td>
+                                @if (selectedGame.PlayType == PlayType.Pairs)
+                                {
+                                    <td class="total-value">@FormatScore(runningTotals[0])</td>
+                                    <td class="total-value">@FormatScore(runningTotals[1])</td>
+                                    <td class="total-value"></td>
+                                    <td class="total-value"></td>
+                                }
+                                else
+                                {
+                                    @for (int p = 0; p < 4; p++)
+                                    {
+                                        <td class="total-value">@FormatScore(runningTotals[p])</td>
+                                    }
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+    
+    @if (showDeleteConfirm)
+    {
+        <div class="modal-overlay">
+            <div class="modal-content">
+                <h2>@Lang.T("confirm_delete")</h2>
+                <p>@Lang.T("confirm_delete_message")</p>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" @onclick="CancelDelete">@Lang.T("cancel")</button>
+                    <button class="btn btn-danger" @onclick="DeleteGame">@Lang.T("delete")</button>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @code {
     private List<GameHistory> historyList = new();
+    private GameHistory? selectedGame = null;
+    private bool showDeleteConfirm = false;
+    private GameHistory? gameToDelete = null;
 
     protected override async Task OnInitializedAsync()
     {
         Lang.OnLanguageChanged += StateHasChanged;
         historyList = await GameService.GetHistoryAsync();
+    }
+
+    private void ViewGameDetails(GameHistory game)
+    {
+        selectedGame = game;
+    }
+    
+    private void BackToList()
+    {
+        selectedGame = null;
     }
 
     private string GetModeName(GameMode mode)
@@ -107,6 +303,67 @@
         return playType == PlayType.Individuals 
             ? Lang.T("type_individuals") 
             : Lang.T("type_pairs");
+    }
+    
+    private string FormatBid(int bid)
+    {
+        return bid == 0 ? "-" : (bid < 0 ? "—" : bid.ToString());
+    }
+
+    private string FormatScore(int score)
+    {
+        // Convert score to decimal format (divide by 100)
+        double decimalScore = score / 100.0;
+        return decimalScore.ToString("F1");
+    }
+    
+    private string GetScoreColorClass(RoundData round, int playerIndex, int score)
+    {
+        // Check if this is a penalty (bid > 0 but actual == 0)
+        if (round.ActualTricks[playerIndex].HasValue && 
+            round.Bids[playerIndex] > 0 && 
+            round.ActualTricks[playerIndex].Value == 0)
+        {
+            return "penalty";
+        }
+        
+        // Check if this round has a deduction applied
+        if (round.HasDeduction[playerIndex])
+        {
+            return "deduction";
+        }
+        
+        // Check if this score was doubled (bonus)
+        if (round.HasBonus[playerIndex])
+        {
+            return "bonus";
+        }
+        
+        return "";
+    }
+    
+    private void ConfirmDelete(GameHistory game)
+    {
+        gameToDelete = game;
+        showDeleteConfirm = true;
+    }
+    
+    private void CancelDelete()
+    {
+        gameToDelete = null;
+        showDeleteConfirm = false;
+    }
+    
+    private async Task DeleteGame()
+    {
+        if (gameToDelete != null)
+        {
+            await GameService.DeleteHistoryGameAsync(gameToDelete.Id);
+            historyList = await GameService.GetHistoryAsync();
+            gameToDelete = null;
+            showDeleteConfirm = false;
+            StateHasChanged();
+        }
     }
 
     public void Dispose()

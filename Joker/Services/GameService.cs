@@ -7,7 +7,6 @@ public class GameService
 {
     private const string CURRENT_GAME_KEY = "joker_current_game";
     private const string GAME_HISTORY_KEY = "joker_game_history";
-    private const int MAX_HISTORY = 10;
     
     private readonly LocalStorageService _localStorage;
     
@@ -352,18 +351,20 @@ public class GameService
         CurrentGame.IsCompleted = true;
         CurrentGame.CompletedAt = DateTime.UtcNow;
         
-        // Save to history
+        // Save to history with complete game state
         var history = new GameHistory
         {
             PlayerNames = CurrentGame.PlayerNames,
             Mode = CurrentGame.Mode,
             PlayType = CurrentGame.PlayType,
             FinalScores = GetFinalScores(),
-            CompletedAt = CurrentGame.CompletedAt.Value
+            CompletedAt = CurrentGame.CompletedAt.Value,
+            StartedAt = CurrentGame.StartedAt,
+            Segments = CurrentGame.Segments // Save complete game data
         };
         
         await AddToHistoryAsync(history);
-        await ClearCurrentGameAsync();
+        // Don't clear the game here - let the UI handle it when user navigates away
     }
     
     public int[] GetFinalScores()
@@ -411,12 +412,7 @@ public class GameService
         
         historyList.Insert(0, history);
         
-        // Keep only last 10
-        if (historyList.Count > MAX_HISTORY)
-        {
-            historyList = historyList.Take(MAX_HISTORY).ToList();
-        }
-        
+        // Save all games - no limit
         var newJson = JsonSerializer.Serialize(historyList);
         await _localStorage.SetItemAsync(GAME_HISTORY_KEY, newJson);
     }
@@ -427,5 +423,14 @@ public class GameService
         return string.IsNullOrEmpty(json) 
             ? new List<GameHistory>() 
             : JsonSerializer.Deserialize<List<GameHistory>>(json) ?? new List<GameHistory>();
+    }
+    
+    public async Task DeleteHistoryGameAsync(Guid gameId)
+    {
+        var historyList = await GetHistoryAsync();
+        historyList.RemoveAll(g => g.Id == gameId);
+        
+        var json = JsonSerializer.Serialize(historyList);
+        await _localStorage.SetItemAsync(GAME_HISTORY_KEY, json);
     }
 }

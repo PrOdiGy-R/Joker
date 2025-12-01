@@ -291,9 +291,22 @@ else
                         
                         <div class="winner-section">
                             <h3>@(winners.Count > 1 ? Lang.T("winners") : Lang.T("winner"))</h3>
-                            @foreach (var winner in winners)
+                            @if (GameService.CurrentGame.PlayType == PlayType.Pairs)
                             {
-                                <div class="winner-name">🏆 @GetWinnerDisplayName(winner)</div>
+                                // For pairs mode, only show the winning pair
+                                @foreach (var winner in winners)
+                                {
+                                    <div class="winner-name">🏆 @GetWinnerDisplayName(winner)</div>
+                                    break; // Only show one pair
+                                }
+                            }
+                            else
+                            {
+                                // For individuals mode, show all winners
+                                @foreach (var winner in winners)
+                                {
+                                    <div class="winner-name">🏆 @GetWinnerDisplayName(winner)</div>
+                                }
                             }
                         </div>
 
@@ -325,8 +338,8 @@ else
                     </div>
 
                     <div class="modal-actions">
-                        <button class="btn btn-secondary" @onclick="ViewHistory">@Lang.T("view_history")</button>
-                        <button class="btn btn-primary" @onclick='() => Navigation.NavigateTo("/")'>@Lang.T("new_game")</button>
+                        <button class="btn btn-secondary" @onclick="ViewHistoryFromResult">@Lang.T("view_history")</button>
+                        <button class="btn btn-primary" @onclick="StartNewGameFromResult">@Lang.T("new_game")</button>
                     </div>
                 </div>
             </div>
@@ -846,6 +859,18 @@ else
     private void ViewHistory()
     {
         Navigation.NavigateTo("/history");
+    }
+
+    private async Task ViewHistoryFromResult()
+    {
+        await GameService.ClearCurrentGameAsync();
+        Navigation.NavigateTo("/history");
+    }
+
+    private async Task StartNewGameFromResult()
+    {
+        await GameService.ClearCurrentGameAsync();
+        Navigation.NavigateTo("/");
     }
 
     public void Dispose()

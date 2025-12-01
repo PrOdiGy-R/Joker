@@ -61,6 +61,9 @@ public class LanguageService
             ["completed"] = "Completed",
             ["mode"] = "Mode",
             ["back"] = "Back",
+            ["delete"] = "Delete",
+            ["confirm_delete"] = "Delete Game?",
+            ["confirm_delete_message"] = "Are you sure you want to delete this game from history?",
             
             // Common
             ["confirm"] = "Confirm",
@@ -120,6 +123,9 @@ public class LanguageService
             ["completed"] = "დასრულდა",
             ["mode"] = "რეჟიმი",
             ["back"] = "უკან",
+            ["delete"] = "წაშლა",
+            ["confirm_delete"] = "თამაშის წაშლა?",
+            ["confirm_delete_message"] = "დარწმუნებული ხართ, რომ გსურთ ამ თამაშის ისტორიიდან წაშლა?",
             
             // Common
             ["confirm"] = "დადასტურება",
