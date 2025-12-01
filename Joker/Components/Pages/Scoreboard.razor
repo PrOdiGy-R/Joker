@@ -179,8 +179,8 @@ else
                                     pairSubtotal2 += r.Scores[1] + r.Scores[3];
                                 }
                                 
-                                <td class="subtotal-value">@pairSubtotal1</td>
-                                <td class="subtotal-value">@pairSubtotal2</td>
+                                <td class="subtotal-value">@FormatScore(pairSubtotal1)</td>
+                                <td class="subtotal-value">@FormatScore(pairSubtotal2)</td>
                                 <td class="subtotal-value"></td>
                                 <td class="subtotal-value"></td>
                             }
@@ -190,7 +190,7 @@ else
                                 {
                                     var playerIndex = p;
                                     var playerSubtotal = segment.Rounds.Where(r => r.IsCompleted).Sum(r => r.Scores[playerIndex]);
-                                    <td class="subtotal-value">@playerSubtotal</td>
+                                    <td class="subtotal-value">@FormatScore(playerSubtotal)</td>
                                 }
                             }
                         </tr>
@@ -200,8 +200,8 @@ else
                             <td class="total-label">@Lang.T("total")</td>
                             @if (GameService.CurrentGame.PlayType == PlayType.Pairs)
                             {
-                                <td class="total-value">@runningTotals[0]</td>
-                                <td class="total-value">@runningTotals[1]</td>
+                                <td class="total-value">@FormatScore(runningTotals[0])</td>
+                                <td class="total-value">@FormatScore(runningTotals[1])</td>
                                 <td class="total-value"></td>
                                 <td class="total-value"></td>
                             }
@@ -209,7 +209,7 @@ else
                             {
                                 @for (int p = 0; p < 4; p++)
                                 {
-                                    <td class="total-value">@runningTotals[p]</td>
+                                    <td class="total-value">@FormatScore(runningTotals[p])</td>
                                 }
                             }
                         </tr>
@@ -258,63 +258,7 @@ else
                     }
                     else
                     {
-                        <h3>@Lang.T("enter_actual")</h3>
-                        <div class="input-display">
-                            @for (int p = 0; p < 4; p++)
-                            {
-                                var playerIndex = p;
-                                if (tempActual[playerIndex].HasValue)
-                                {
-                                    <div class="player-input completed" @onclick="() => EditActualValue(playerIndex)">
-                                        <label>@GameService.CurrentGame.PlayerNames[playerIndex]</label>
-                                        <div class="input-value">@tempActual[playerIndex]</div>
-                                    </div>
-                                }
-                                else if (currentActualPlayer == playerIndex)
-                                {
-                                    <div class="player-input active">
-                                        <label>@GameService.CurrentGame.PlayerNames[playerIndex]</label>
-                                        <div class="input-value">—</div>
-                                    </div>
-                                }
-                                else
-                                {
-                                    <div class="player-input">
-                                        <label>@GameService.CurrentGame.PlayerNames[playerIndex]</label>
-                                        <div class="input-value">—</div>
-                                    </div>
-                                }
-                            }
-                        </div>
-                        
-                        <div class="edit-bids-section">
-                            <button class="btn btn-link" @onclick="SwitchToEditBids">@Lang.T("edit") @Lang.T("bid")</button>
-                        </div>
-                        
-                        @if (!string.IsNullOrEmpty(bidError))
-                        {
-                            <div class="error-message">@bidError</div>
-                        }
-                        <div class="numpad">
-                            @{
-                                var currentRound = GameService.CurrentGame.Segments[currentInputSegment].Rounds[currentInputRound];
-                                var maxValue = currentRound.CardsDealt;
-                                var alreadyTaken = 0;
-                                for (int i = 0; i < 4; i++)
-                                {
-                                    if (i != currentActualPlayer && tempActual[i].HasValue)
-                                    {
-                                        alreadyTaken += tempActual[i].Value;
-                                    }
-                                }
-                                var remainingMax = maxValue - alreadyTaken;
-                            }
-                            @for (int i = 0; i <= remainingMax; i++)
-                            {
-                                var num = i;
-                                <button class="numpad-btn" @onclick="() => SetActualValue(num)">@i</button>
-                            }
-                        </div>
+                        @RenderActualTricksInput()
                     }
 
                     <div class="modal-actions">
@@ -359,11 +303,11 @@ else
                             {
                                 <div class="score-item">
                                     <span class="player-name">@Lang.T("pair") 1: @GameService.CurrentGame.PlayerNames[0] & @GameService.CurrentGame.PlayerNames[2]</span>
-                                    <span class="score-value">@finalScores[0]</span>
+                                    <span class="score-value">@FormatScore(finalScores[0])</span>
                                 </div>
                                 <div class="score-item">
                                     <span class="player-name">@Lang.T("pair") 2: @GameService.CurrentGame.PlayerNames[1] & @GameService.CurrentGame.PlayerNames[3]</span>
-                                    <span class="score-value">@finalScores[1]</span>
+                                    <span class="score-value">@FormatScore(finalScores[1])</span>
                                 </div>
                             }
                             else
@@ -373,7 +317,7 @@ else
                                     var playerIndex = i;
                                     <div class="score-item">
                                         <span class="player-name">@GameService.CurrentGame.PlayerNames[playerIndex]</span>
-                                        <span class="score-value">@finalScores[playerIndex]</span>
+                                        <span class="score-value">@FormatScore(finalScores[playerIndex])</span>
                                     </div>
                                 }
                             }
@@ -470,6 +414,13 @@ else
     private string FormatBid(int bid)
     {
         return bid == 0 ? "-" : (bid < 0 ? "—" : bid.ToString());
+    }
+
+    private string FormatScore(int score)
+    {
+        // Convert score to decimal format (divide by 100)
+        double decimalScore = score / 100.0;
+        return decimalScore.ToString("F1");
     }
 
     private string GetScoreColorClass(int segmentIndex, int roundIndex, int playerIndex, int score)
@@ -901,4 +852,93 @@ else
     {
         Lang.OnLanguageChanged -= StateHasChanged;
     }
+    
+    private RenderFragment RenderActualTricksInput() => __builder =>
+    {
+        var currentRound = GameService.CurrentGame!.Segments[currentInputSegment].Rounds[currentInputRound];
+        var totalBids = currentRound.Bids.Sum();
+        var cardsDealt = currentRound.CardsDealt;
+        var difference = totalBids - cardsDealt;
+        
+        <h3>@Lang.T("enter_actual")</h3>
+        
+        @* Bid information display *@
+        <div class="bids-info-display">
+            @for (int p = 0; p < 4; p++)
+            {
+                var playerIndex = p;
+                <div class="bid-info-item">
+                    <span class="player-name-small">@GameService.CurrentGame.PlayerNames[playerIndex]:</span>
+                    <span class="bid-value-small">@FormatBid(currentRound.Bids[playerIndex])</span>
+                </div>
+            }
+        </div>
+        
+        @* Bid excess/shortage indicator *@
+        @if (difference != 0)
+        {
+            <div class="bid-difference-indicator @(difference > 0 ? "tearing" : "extra")">
+                <span class="indicator-icon">@(difference > 0 ? "✂️" : "🐷")</span>
+                <span class="indicator-text">
+                    @(difference > 0 ? Lang.T("tearing_away") : Lang.T("extra")) @Math.Abs(difference)
+                </span>
+            </div>
+        }
+        
+        <div class="input-display">
+            @for (int p = 0; p < 4; p++)
+            {
+                var playerIndex = p;
+                if (tempActual[playerIndex].HasValue)
+                {
+                    <div class="player-input completed" @onclick="() => EditActualValue(playerIndex)">
+                        <label>@GameService.CurrentGame.PlayerNames[playerIndex]</label>
+                        <div class="input-value">@tempActual[playerIndex]</div>
+                    </div>
+                }
+                else if (currentActualPlayer == playerIndex)
+                {
+                    <div class="player-input active">
+                        <label>@GameService.CurrentGame.PlayerNames[playerIndex]</label>
+                        <div class="input-value">—</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="player-input">
+                        <label>@GameService.CurrentGame.PlayerNames[playerIndex]</label>
+                        <div class="input-value">—</div>
+                    </div>
+                }
+            }
+        </div>
+        
+        <div class="edit-bids-section">
+            <button class="btn btn-link" @onclick="SwitchToEditBids">@Lang.T("edit") @Lang.T("bid")</button>
+        </div>
+        
+        @if (!string.IsNullOrEmpty(bidError))
+        {
+            <div class="error-message">@bidError</div>
+        }
+        <div class="numpad">
+            @{
+                var maxValue = currentRound.CardsDealt;
+                var alreadyTaken = 0;
+                for (int i = 0; i < 4; i++)
+                {
+                    if (i != currentActualPlayer && tempActual[i].HasValue)
+                    {
+                        alreadyTaken += tempActual[i].Value;
+                    }
+                }
+                var remainingMax = maxValue - alreadyTaken;
+            }
+            @for (int i = 0; i <= remainingMax; i++)
+            {
+                var num = i;
+                <button class="numpad-btn" @onclick="() => SetActualValue(num)">@i</button>
+            }
+        </div>
+    };
 }

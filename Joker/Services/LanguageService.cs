@@ -44,6 +44,8 @@ public class LanguageService
             ["bid_sum_error"] = "Total bids cannot equal cards dealt!",
             ["confirm_end_game"] = "End Game Early?",
             ["game_not_complete_warning"] = "The game is not complete yet. Are you sure you want to finish and save the current scores?",
+            ["tearing_away"] = "Tearing away",
+            ["extra"] = "Extra",
             
             // Game complete
             ["game_complete"] = "Game Complete!",
@@ -101,6 +103,8 @@ public class LanguageService
             ["bid_sum_error"] = "ვზიატკების ჯამი არ უნდა იყოს კარტების რაოდენობის ტოლი!",
             ["confirm_end_game"] = "რაო ნებდებით? სემიჩკაა",
             ["game_not_complete_warning"] = "უეჭ ნებდებით? იშო ნე ვეჩერ",
+            ["tearing_away"] = "წაგლეჯვაა",
+            ["extra"] = "შეტენვაა",
             
             // Game complete
             ["game_complete"] = "თამაში დასრულდა!",
