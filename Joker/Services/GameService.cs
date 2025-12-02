@@ -202,6 +202,33 @@ public class GameService
                 r.ActualTricks[p].HasValue && r.Bids[p] == r.ActualTricks[p].Value);
         }
         
+        // Determine who is immune from deductions
+        bool[] immuneFromDeductions = new bool[4];
+        
+        if (CurrentGame?.PlayType == PlayType.Pairs)
+        {
+            // In pairs mode, if any player in a pair guessed all correctly, both are immune
+            if (allCorrect[0] || allCorrect[2]) // Pair 1 (P1 & P3)
+            {
+                immuneFromDeductions[0] = true;
+                immuneFromDeductions[2] = true;
+            }
+            if (allCorrect[1] || allCorrect[3]) // Pair 2 (P2 & P4)
+            {
+                immuneFromDeductions[1] = true;
+                immuneFromDeductions[3] = true;
+            }
+        }
+        else // Individuals
+        {
+            // In individuals mode, players who guessed all correctly are immune
+            for (int p = 0; p < 4; p++)
+            {
+                immuneFromDeductions[p] = allCorrect[p];
+            }
+        }
+        
+        // Apply bonuses and deductions
         for (int p = 0; p < 4; p++)
         {
             if (allCorrect[p])
@@ -209,7 +236,7 @@ public class GameService
                 // Find highest score for this player
                 int maxScore = segment.Rounds.Max(r => r.Scores[p]);
                 
-                // Find the LAST round with the highest score (not first)
+                // Find the LAST round with the highest score
                 int maxScoreRoundIndex = -1;
                 for (int i = segment.Rounds.Count - 1; i >= 0; i--)
                 {
@@ -225,33 +252,37 @@ public class GameService
                 segment.Rounds[maxScoreRoundIndex].HasBonus[p] = true;
                 segment.BonusAdjustments[p] += maxScore; // Track the bonus added
                 
-                // Deduct from opponents
+                // Determine who should receive deductions
                 if (CurrentGame?.PlayType == PlayType.Pairs)
                 {
                     int partnerIndex = p == 0 || p == 2 ? (p == 0 ? 2 : 0) : (p == 1 ? 3 : 1);
-                    bool partnerAlsoAllCorrect = allCorrect[partnerIndex];
                     
-                    // Determine which opponents to deduct from
-                    List<int> opponentsToDeduct = new List<int>();
-                    for (int opp = 0; opp < 4; opp++)
+                    // Check if both players in opposing pair are immune
+                    int opp1 = p == 0 || p == 2 ? 1 : 0; // First opponent
+                    int opp2 = p == 0 || p == 2 ? 3 : 2; // Second opponent
+                    
+                    bool opposingPairImmune = immuneFromDeductions[opp1] && immuneFromDeductions[opp2];
+                    
+                    // Only apply deductions if opposing pair is not immune
+                    if (!opposingPairImmune)
                     {
-                        if (opp != p && opp != partnerIndex && !allCorrect[opp])
+                        // Deduct from opponents who are not immune
+                        if (!immuneFromDeductions[opp1])
                         {
-                            opponentsToDeduct.Add(opp);
+                            ApplyDeduction(segment, opp1);
                         }
-                    }
-                    
-                    foreach (var opp in opponentsToDeduct)
-                    {
-                        ApplyDeduction(segment, opp);
+                        if (!immuneFromDeductions[opp2])
+                        {
+                            ApplyDeduction(segment, opp2);
+                        }
                     }
                 }
                 else // Individuals
                 {
-                    // Deduct from all other players who didn't get all correct
+                    // Deduct from all other players who are not immune
                     for (int opp = 0; opp < 4; opp++)
                     {
-                        if (opp != p && !allCorrect[opp])
+                        if (opp != p && !immuneFromDeductions[opp])
                         {
                             ApplyDeduction(segment, opp);
                         }
